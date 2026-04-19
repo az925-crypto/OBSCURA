@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBSCURA — Text Encoder/Decoder v3.0</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c0a;
+    --surface: #0e1410;
+    --border: #1a2e1e;
+    --accent: #2ef567;
+    --accent-dim: #1a8c3c;
+    --accent-glow: rgba(46, 245, 103, 0.15);
+    --text: #c8e8cc;
+    --text-dim: #4a6e50;
+    --red: #ff4444;
+    --yellow: #f5c842;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  header {
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(46, 245, 103, 0.4), 0 0 80px rgba(46, 245, 103, 0.15);
+    letter-spacing: -2px;
+    line-height: 1;
+  }
+
+  .version-tag {
+    font-size: 11px;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 2px;
+  }
+
+  .tagline {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .tagline span { color: var(--accent-dim); }
+
+  .mode-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    animation: fadeDown 0.6s 0.1s ease both;
+  }
+
+  .mode-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 10px 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-right: 1px solid var(--border);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .mode-btn:last-child { border-right: none; }
+  .mode-btn:hover { background: var(--accent-glow); color: var(--text); }
+  .mode-btn.active { background: var(--accent-glow); color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    animation: fadeUp 0.6s 0.2s ease both;
+    box-shadow: 0 0 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(46,245,103,0.05);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,0,0,0.3);
+  }
+
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+  .dot.red { background: #3d1515; }
+  .dot.yellow { background: #3d3015; }
+  .dot.green { background: #1a3d1a; }
+
+  .card-title {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-left: 4px;
+  }
+
+  .card-body { padding: 20px; display: grid; gap: 16px; }
+
+  .field-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .char-count { font-size: 10px; color: var(--text-dim); }
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    line-height: 1.6;
+  }
+
+  textarea:focus { border-color: var(--accent-dim); box-shadow: 0 0 0 3px rgba(46, 245, 103, 0.08); }
+  textarea::placeholder { color: var(--text-dim); }
+  textarea::-webkit-scrollbar { width: 4px; }
+  textarea::-webkit-scrollbar-track { background: transparent; }
+  textarea::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::after { content: ''; position: absolute; inset: 0; background: white; opacity: 0; transition: opacity 0.1s; }
+  .btn:active::after { opacity: 0.05; }
+
+  .btn-primary { background: var(--accent); color: #060c07; }
+  .btn-primary:hover { box-shadow: 0 0 20px rgba(46, 245, 103, 0.4); transform: translateY(-1px); }
+
+  .btn-secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-secondary:hover { color: var(--text); border-color: var(--text-dim); background: rgba(255,255,255,0.03); }
+
+  .btn-ghost { background: transparent; color: var(--accent-dim); border: 1px solid var(--accent-dim); }
+  .btn-ghost:hover { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .output-area { position: relative; }
+
+  .copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    background: var(--border);
+    color: var(--text-dim);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+  }
+
+  .copy-btn:hover { background: var(--accent-glow); color: var(--accent); }
+  .copy-btn.copied { color: var(--accent); background: rgba(46, 245, 103, 0.15); }
+
+  .dl-btn {
+    position: absolute;
+    top: 8px;
+    right: 72px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    background: var(--border);
+    color: var(--text-dim);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+    display: none;
+  }
+  .dl-btn:hover { background: var(--accent-glow); color: var(--accent); }
+  .dl-btn.visible { display: block; }
+
+  .status {
+    font-size: 11px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border-left: 3px solid;
+    animation: fadeIn 0.2s ease;
+    display: none;
+  }
+
+  .status.error { background: rgba(255, 68, 68, 0.08); border-color: var(--red); color: var(--red); display: block; }
+  .status.success { background: rgba(46, 245, 103, 0.08); border-color: var(--accent); color: var(--accent); display: block; }
+
+  .cipher-opts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .cipher-opts label { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+  .cipher-opts input[type=number] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    width: 60px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    outline: none;
+    text-align: center;
+  }
+  .cipher-opts input[type=number]:focus { border-color: var(--accent-dim); }
+
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .tool-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 8px 4px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .tool-chip:hover { border-color: var(--accent-dim); color: var(--text); background: var(--accent-glow); }
+  .tool-chip.selected { border-color: var(--accent); color: var(--accent); background: rgba(46,245,103,0.1); }
+
+  .hash-info {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    border-left: 2px solid var(--border);
+  }
+
+  footer {
+    margin-top: 48px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    animation: fadeUp 0.6s 0.4s ease both;
+  }
+
+  footer span { color: var(--accent-dim); }
+
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  @keyframes glitch {
+    0%, 100% { text-shadow: 0 0 40px rgba(46,245,103,0.4), 0 0 80px rgba(46,245,103,0.15); }
+    20% { text-shadow: -2px 0 #ff0040, 2px 0 var(--accent), 0 0 40px rgba(46,245,103,0.4); }
+    40% { text-shadow: 2px 0 #00d4ff, -2px 0 var(--accent), 0 0 40px rgba(46,245,103,0.4); }
+  }
+
+  .logo:hover { animation: glitch 0.3s ease; }
+
+  @media(max-width: 600px) {
+    .mode-btn { font-size: 10px; padding: 8px 4px; }
+    .tools-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  .code-opts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  @media(max-width: 560px) { .code-opts-grid { grid-template-columns: 1fr; } }
+
+  .toggle-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .toggle-item:hover { border-color: var(--accent-dim); background: var(--accent-glow); }
+  .toggle-item input[type=checkbox] { display: none; }
+
+  .toggle-box {
+    width: 16px; height: 16px; min-width: 16px;
+    border: 1.5px solid var(--text-dim);
+    border-radius: 3px;
+    margin-top: 1px;
+    transition: all 0.15s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .toggle-item input:checked ~ .toggle-box { background: var(--accent); border-color: var(--accent); }
+  .toggle-item input:checked ~ .toggle-box::after { content: '✓'; font-size: 10px; color: #060c07; font-weight: 900; }
+  .toggle-item input:checked ~ .toggle-text .toggle-title { color: var(--accent); }
+
+  .toggle-text { display: flex; flex-direction: column; gap: 2px; }
+  .toggle-title { font-size: 11px; font-weight: 600; color: var(--text); letter-spacing: 0.5px; transition: color 0.15s; }
+  .toggle-desc { font-size: 10px; color: var(--text-dim); line-height: 1.4; }
+
+  .code-info-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--yellow);
+    padding: 7px 10px;
+    background: rgba(245, 200, 66, 0.05);
+    border: 1px solid rgba(245, 200, 66, 0.15);
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 5px;
+    border: 1px solid var(--border);
+  }
+
+  .stat-item { display: flex; flex-direction: column; gap: 2px; }
+  .stat-label { font-size: 9px; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; }
+  .stat-value { font-size: 13px; font-weight: 600; color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-row">
+      <div class="logo">OBSCURA</div>
+      <div class="version-tag">v3.0</div>
+    </div>
+    <div class="tagline">Text <span>Encoder</span> · Decoder · <span>Hasher</span> · Code <span>Obfuscator</span></div>
+  </header>
+
+  <div class="mode-bar">
+    <button class="mode-btn active" onclick="switchMode('encode')">⬆ Encode</button>
+    <button class="mode-btn" onclick="switchMode('decode')">⬇ Decode</button>
+    <button class="mode-btn" onclick="switchMode('hash')">⚡ Hash</button>
+    <button class="mode-btn" onclick="switchMode('cipher')">🔐 Cipher</button>
+    <button class="mode-btn" onclick="switchMode('code')">🛡 Code</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="dot red"></div>
+      <div class="dot yellow"></div>
+      <div class="dot green"></div>
+      <span class="card-title" id="cardTitle">ENCODER — SELECT ALGORITHM</span>
+    </div>
+    <div class="card-body">
+
+      <div id="toolsSection">
+        <div class="field-label">Algorithm</div>
+        <div class="tools-grid" id="toolsGrid"></div>
+      </div>
+
+      <div id="cipherOpts" style="display:none;">
+        <div class="field-label">Options</div>
+        <div class="cipher-opts">
+          <label>SHIFT:</label>
+          <input type="number" id="caesarShift" value="13" min="1" max="25">
+          <span style="font-size:11px;color:var(--text-dim);">( ROT-13 = 13 )</span>
+        </div>
+      </div>
+
+      <div id="codeOpts" style="display:none;">
+        <div class="field-label" style="margin-bottom:12px;">Protection Layers</div>
+        <div class="code-opts-grid">
+          <label class="toggle-item">
+            <input type="checkbox" id="optMangle" checked>
+            <span class="toggle-box"></span>
+            <div class="toggle-text">
+              <span class="toggle-title">Name Mangling</span>
+              <span class="toggle-desc">Rename vars & functions → _0xABCD</span>
+            </div>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optStrings" checked>
+            <span class="toggle-box"></span>
+            <div class="toggle-text">
+              <span class="toggle-title">String Encryption</span>
+              <span class="toggle-desc">Encode string literals ke hex/unicode</span>
+            </div>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optDeadCode" checked>
+            <span class="toggle-box"></span>
+            <div class="toggle-text">
+              <span class="toggle-title">Dead Code Injection</span>
+              <span class="toggle-desc">Sisipkan kode palsu yang tidak berjalan</span>
+            </div>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optControlFlow">
+            <span class="toggle-box"></span>
+            <div class="toggle-text">
+              <span class="toggle-title">Control Flow Wrap</span>
+              <span class="toggle-desc">Bungkus logika dalam switch/while palsu</span>
+            </div>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optMinify" checked>
+            <span class="toggle-box"></span>
+            <div class="toggle-text">
+              <span class="toggle-title">Minify</span>
+              <span class="toggle-desc">Hapus whitespace & komentar</span>
+            </div>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="optSelfDefend">
+            <span class="toggle-box"></span>
+            <div class="toggle-text">
+              <span class="toggle-title">Anti-Tamper Header</span>
+              <span class="toggle-desc">Tambah integrity check di atas kode</span>
+            </div>
+          </label>
+        </div>
+        <div class="code-info-bar">
+          <span>⚠</span>
+          <span>Output tetap fungsional secara logika — hanya susah dibaca manusia.</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="field-label">
+          <span id="inputLabel">INPUT TEXT</span>
+          <span class="char-count" id="charCount">0 chars</span>
+        </div>
+        <textarea id="inputText" placeholder="Ketik atau paste teks di sini..." oninput="updateCount()"></textarea>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" onclick="runProcess()">▶ Run</button>
+        <button class="btn btn-secondary" onclick="swapIO()">⇅ Swap</button>
+        <button class="btn btn-secondary" onclick="clearAll()">✕ Clear</button>
+      </div>
+
+      <div class="status" id="status"></div>
+
+      <div class="divider">OUTPUT</div>
+
+      <div class="output-area">
+        <div class="field-label">
+          <span id="outputLabel">RESULT</span>
+          <span class="char-count" id="outCount">0 chars</span>
+        </div>
+        <textarea id="outputText" placeholder="Hasil akan muncul di sini..." readonly></textarea>
+        <button class="dl-btn" id="dlBtn" onclick="downloadOutput()">↓ SAVE</button>
+        <button class="copy-btn" id="copyBtn" onclick="copyOutput()">COPY</button>
+      </div>
+
+      <div class="hash-info" id="hashInfo" style="display:none;"></div>
+
+      <div class="stats-bar" id="codeStats" style="display:none;">
+        <div class="stat-item">
+          <span class="stat-label">Original</span>
+          <span class="stat-value" id="statOrig">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Obfuscated</span>
+          <span class="stat-value" id="statObf">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Size Change</span>
+          <span class="stat-value" id="statDelta">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Layers Applied</span>
+          <span class="stat-value" id="statLayers">—</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    ALL PROCESSING DONE <span>CLIENT-SIDE</span> · NO DATA SENT TO SERVER ·
+    <span>v3.0</span> FIXES: MD5 BYTE-REVERSAL · CONTROL FLOW ORDER · STRING-AWARE MINIFIER · ANTI-TAMPER · DEAD CODE INJECTION · MORSE DECODE · NAME MANGLER
+  </footer>
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────
+let currentMode = 'encode';
+let currentTool = null;
+
+const TOOLS = {
+  encode: [
+    { id: 'base64',  label: 'Base64' },
+    { id: 'url',     label: 'URL Enc' },
+    { id: 'hex',     label: 'Hex' },
+    { id: 'binary',  label: 'Binary' },
+    { id: 'html',    label: 'HTML Ent' },
+    { id: 'unicode', label: 'Unicode' },
+  ],
+  decode: [
+    { id: 'base64',  label: 'Base64' },
+    { id: 'url',     label: 'URL Dec' },
+    { id: 'hex',     label: 'Hex' },
+    { id: 'binary',  label: 'Binary' },
+    { id: 'html',    label: 'HTML Ent' },
+    { id: 'unicode', label: 'Unicode' },
+  ],
+  hash: [
+    { id: 'md5',    label: 'MD5' },
+    { id: 'sha1',   label: 'SHA-1' },
+    { id: 'sha256', label: 'SHA-256' },
+    { id: 'sha512', label: 'SHA-512' },
+  ],
+  cipher: [
+    { id: 'caesar',  label: 'Caesar' },
+    { id: 'rot13',   label: 'ROT-13' },
+    { id: 'atbash',  label: 'Atbash' },
+    { id: 'reverse', label: 'Reverse' },
+    { id: 'morse',   label: 'Morse' },
+  ],
+  code: []
+};
+
+// ─── MODE SWITCHING ───────────────────────────────────
+function switchMode(mode) {
+  currentMode = mode;
+  currentTool = (mode === 'code') ? 'js' : null;
+
+  document.querySelectorAll('.mode-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['encode','decode','hash','cipher','code'][i] === mode);
+  });
+
+  const titles = {
+    encode: 'ENCODER — SELECT ALGORITHM',
+    decode: 'DECODER — SELECT ALGORITHM',
+    hash:   'HASHER — SELECT ALGORITHM',
+    cipher: 'CIPHER — SELECT ALGORITHM',
+    code:   'CODE OBFUSCATOR — JAVASCRIPT',
+  };
+  document.getElementById('cardTitle').textContent = titles[mode];
+
+  document.getElementById('cipherOpts').style.display  = mode === 'cipher' ? 'block' : 'none';
+  document.getElementById('codeOpts').style.display    = mode === 'code'   ? 'block' : 'none';
+  document.getElementById('toolsSection').style.display= mode === 'code'   ? 'none'  : 'block';
+  document.getElementById('hashInfo').style.display    = 'none';
+  document.getElementById('codeStats').style.display   = 'none';
+
+  document.getElementById('inputText').placeholder =
+    mode === 'code' ? 'Paste kode JavaScript di sini...' : 'Ketik atau paste teks di sini...';
+
+  renderTools();
+  clearStatus();
+}
+
+function renderTools() {
+  const grid = document.getElementById('toolsGrid');
+  grid.innerHTML = '';
+  TOOLS[currentMode].forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tool-chip' + (currentTool === t.id ? ' selected' : '');
+    btn.textContent = t.label;
+    btn.onclick = () => selectTool(t.id);
+    grid.appendChild(btn);
+  });
+}
+
+function selectTool(id) {
+  currentTool = id;
+  renderTools();
+  clearStatus();
+  if (id === 'rot13') document.getElementById('caesarShift').value = 13;
+}
+
+// ─── MAIN PROCESS ENTRY ──────────────────────────────
+// FIX: Renamed from process() to runProcess() to avoid overriding/conflicting
+// with any global 'process' reference, and removed the broken window.process override.
+function runProcess() {
+  if (currentMode === 'code')  { processCode(); return; }
+  if (currentMode === 'hash')  { processHash(); return; }
+
+  if (!currentTool) { showStatus('Pilih algoritma dulu!', 'error'); return; }
+  const input = document.getElementById('inputText').value;
+  if (!input.trim()) { showStatus('Input tidak boleh kosong.', 'error'); return; }
+
+  try {
+    document.getElementById('hashInfo').style.display  = 'none';
+    document.getElementById('codeStats').style.display = 'none';
+
+    let result = '';
+    if (currentMode === 'encode') result = encode(currentTool, input);
+    else if (currentMode === 'decode') result = decode(currentTool, input);
+    else if (currentMode === 'cipher') result = cipher(currentTool, input);
+
+    setOutput(result);
+    showStatus('Berhasil diproses!', 'success');
+  } catch (e) {
+    showStatus('Error: ' + e.message, 'error');
+    document.getElementById('outputText').value = '';
+  }
+}
+
+// ─── HASH (async, clean) ─────────────────────────────
+// FIX: Removed the dual sync/async doHash() pattern that showed "⏳" flicker.
+// Now all hash operations go through one clean async function.
+async function processHash() {
+  if (!currentTool) { showStatus('Pilih algoritma dulu!', 'error'); return; }
+  const input = document.getElementById('inputText').value;
+  if (!input.trim()) { showStatus('Input tidak boleh kosong.', 'error'); return; }
+
+  document.getElementById('hashInfo').style.display  = 'none';
+  document.getElementById('codeStats').style.display = 'none';
+
+  try {
+    const result = await hashAsync(currentTool, input);
+    setOutput(result);
+
+    const bits = { md5: 128, sha1: 160, sha256: 256, sha512: 512 };
+    const info = document.getElementById('hashInfo');
+    info.style.display = 'block';
+    info.textContent = `${currentTool.toUpperCase()} · ${bits[currentTool]} bits · ${result.length} hex chars · ONE-WAY (tidak bisa di-decode)`;
+    showStatus('Hash berhasil dibuat!', 'success');
+  } catch(e) {
+    showStatus('Error: ' + e.message, 'error');
+  }
+}
+
+async function hashAsync(algo, input) {
+  // FIX: MD5 now uses UTF-8 encoded bytes, same as SHA variants,
+  // so it handles Unicode input correctly instead of throwing on non-ASCII.
+  if (algo === 'md5') return md5(input);
+  const enc = new TextEncoder().encode(input);
+  const algoMap = { sha1: 'SHA-1', sha256: 'SHA-256', sha512: 'SHA-512' };
+  const buf = await crypto.subtle.digest(algoMap[algo], enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ─── ENCODERS ─────────────────────────────────────────
+function encode(tool, input) {
+  switch (tool) {
+    case 'base64':
+      return btoa(unescape(encodeURIComponent(input)));
+    case 'url':
+      return encodeURIComponent(input);
+    case 'hex':
+      return Array.from(new TextEncoder().encode(input))
+        .map(b => b.toString(16).padStart(2, '0')).join(' ');
+    case 'binary':
+      return Array.from(new TextEncoder().encode(input))
+        .map(b => b.toString(2).padStart(8, '0')).join(' ');
+    case 'html':
+      return input
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    case 'unicode':
+      return Array.from(input)
+        .map(c => '\\u' + c.charCodeAt(0).toString(16).padStart(4,'0')).join('');
+    default: throw new Error('Unknown tool');
+  }
+}
+
+function decode(tool, input) {
+  switch (tool) {
+    case 'base64':
+      try {
+        return decodeURIComponent(escape(atob(input.replace(/\s/g,''))));
+      } catch {
+        throw new Error('Format Base64 tidak valid.');
+      }
+    case 'url':
+      try {
+        return decodeURIComponent(input);
+      } catch {
+        throw new Error('Format URL encoding tidak valid.');
+      }
+    case 'hex': {
+      const bytes = input.trim().split(/\s+/).map(h => parseInt(h, 16));
+      if (bytes.some(isNaN)) throw new Error('Format hex tidak valid. Gunakan format: 48 65 6c 6c 6f');
+      return new TextDecoder().decode(new Uint8Array(bytes));
+    }
+    case 'binary': {
+      const bytes = input.trim().split(/\s+/).map(b => parseInt(b, 2));
+      if (bytes.some(isNaN)) throw new Error('Format binary tidak valid. Gunakan format: 01001000 01100101');
+      return new TextDecoder().decode(new Uint8Array(bytes));
+    }
+    case 'html': {
+      const el = document.createElement('div');
+      el.innerHTML = input;
+      return el.textContent;
+    }
+    case 'unicode':
+      return input.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+    default: throw new Error('Unknown tool');
+  }
+}
+
+// ─── CIPHER ───────────────────────────────────────────
+const MORSE = {
+  A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',
+  I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',
+  Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',
+  Y:'-.--',Z:'--..',
+  '0':'-----','1':'.----','2':'..---','3':'...--','4':'....-',
+  '5':'.....','6':'-....','7':'--...','8':'---..','9':'----.',
+  ' ':'/'
+};
+const MORSE_REV = Object.fromEntries(Object.entries(MORSE).map(([k,v])=>[v,k]));
+
+function cipher(tool, input) {
+  const shift = parseInt(document.getElementById('caesarShift').value) || 13;
+  switch (tool) {
+    case 'caesar':  return caesarShift(input, shift);
+    case 'rot13':   return caesarShift(input, 13);
+    case 'atbash':  return input.replace(/[a-zA-Z]/g, c => {
+      const base = c <= 'Z' ? 65 : 97;
+      return String.fromCharCode(base + 25 - (c.charCodeAt(0) - base));
+    });
+    case 'reverse': return input.split('').reverse().join('');
+    case 'morse':
+      // FIX #6: Added morse decode path. MORSE_REV was defined but never used.
+      // Auto-detect: if input looks like morse (dots/dashes/slashes), decode it.
+      if (/^[.\-/ ]+$/.test(input.trim())) {
+        return input.trim().split(' ').map(token => {
+          if (token === '/') return ' ';
+          return MORSE_REV[token] || '?';
+        }).join('');
+      }
+      return input.toUpperCase().split('').map(c => MORSE[c] || '?').join(' ');
+    default: throw new Error('Unknown cipher');
+  }
+}
+
+function caesarShift(text, n) {
+  return text.replace(/[a-zA-Z]/g, c => {
+    const base = c <= 'Z' ? 65 : 97;
+    return String.fromCharCode((c.charCodeAt(0) - base + n) % 26 + base);
+  });
+}
+
+// ─── MD5 (pure JS, UTF-8 aware) ──────────────────────
+// FIX: Rewrote to use TextEncoder for proper UTF-8 byte handling instead
+// of charCodeAt which breaks on any non-ASCII character.
+function md5(str) {
+  // Convert string to UTF-8 byte array
+  const bytes = Array.from(new TextEncoder().encode(str));
+
+  function safeAdd(x,y){let l=(x&0xffff)+(y&0xffff),m=(x>>16)+(y>>16)+(l>>16);return(m<<16)|(l&0xffff)}
+  function bitRotateLeft(n,c){return(n<<c)|(n>>>(32-c))}
+  function md5cmn(q,a,b,x,s,t){return safeAdd(bitRotateLeft(safeAdd(safeAdd(a,q),safeAdd(x,t)),s),b)}
+  function md5ff(a,b,c,d,x,s,t){return md5cmn((b&c)|((~b)&d),a,b,x,s,t)}
+  function md5gg(a,b,c,d,x,s,t){return md5cmn((b&d)|(c&(~d)),a,b,x,s,t)}
+  function md5hh(a,b,c,d,x,s,t){return md5cmn(b^c^d,a,b,x,s,t)}
+  function md5ii(a,b,c,d,x,s,t){return md5cmn(c^(b|(~d)),a,b,x,s,t)}
+
+  const n = [];
+  const ib = bytes.length * 8;
+  for (let i = 0; i < bytes.length; i++) { n[i>>2] |= bytes[i] << (i%4*8); }
+  n[ib>>5] |= 0x80 << (ib%32);
+  n[((ib+64>>>9)<<4)+14] = ib;
+
+  let a=1732584193, b=-271733879, c=-1732584194, d=271733878;
+  for (let i = 0; i < n.length; i += 16) {
+    const [oa,ob,oc,od]=[a,b,c,d];
+    a=md5ff(a,b,c,d,n[i],7,-680876936);d=md5ff(d,a,b,c,n[i+1],12,-389564586);c=md5ff(c,d,a,b,n[i+2],17,606105819);b=md5ff(b,c,d,a,n[i+3],22,-1044525330);
+    a=md5ff(a,b,c,d,n[i+4],7,-176418897);d=md5ff(d,a,b,c,n[i+5],12,1200080426);c=md5ff(c,d,a,b,n[i+6],17,-1473231341);b=md5ff(b,c,d,a,n[i+7],22,-45705983);
+    a=md5ff(a,b,c,d,n[i+8],7,1770035416);d=md5ff(d,a,b,c,n[i+9],12,-1958414417);c=md5ff(c,d,a,b,n[i+10],17,-42063);b=md5ff(b,c,d,a,n[i+11],22,-1990404162);
+    a=md5ff(a,b,c,d,n[i+12],7,1804603682);d=md5ff(d,a,b,c,n[i+13],12,-40341101);c=md5ff(c,d,a,b,n[i+14],17,-1502002290);b=md5ff(b,c,d,a,n[i+15],22,1236535329);
+    a=md5gg(a,b,c,d,n[i+1],5,-165796510);d=md5gg(d,a,b,c,n[i+6],9,-1069501632);c=md5gg(c,d,a,b,n[i+11],14,643717713);b=md5gg(b,c,d,a,n[i],20,-373897302);
+    a=md5gg(a,b,c,d,n[i+5],5,-701558691);d=md5gg(d,a,b,c,n[i+10],9,38016083);c=md5gg(c,d,a,b,n[i+15],14,-660478335);b=md5gg(b,c,d,a,n[i+4],20,-405537848);
+    a=md5gg(a,b,c,d,n[i+9],5,568446438);d=md5gg(d,a,b,c,n[i+14],9,-1019803690);c=md5gg(c,d,a,b,n[i+3],14,-187363961);b=md5gg(b,c,d,a,n[i+8],20,1163531501);
+    a=md5gg(a,b,c,d,n[i+13],5,-1444681467);d=md5gg(d,a,b,c,n[i+2],9,-51403784);c=md5gg(c,d,a,b,n[i+7],14,1735328473);b=md5gg(b,c,d,a,n[i+12],20,-1926607734);
+    a=md5hh(a,b,c,d,n[i+5],4,-378558);d=md5hh(d,a,b,c,n[i+8],11,-2022574463);c=md5hh(c,d,a,b,n[i+11],16,1839030562);b=md5hh(b,c,d,a,n[i+14],23,-35309556);
+    a=md5hh(a,b,c,d,n[i+1],4,-1530992060);d=md5hh(d,a,b,c,n[i+4],11,1272893353);c=md5hh(c,d,a,b,n[i+7],16,-155497632);b=md5hh(b,c,d,a,n[i+10],23,-1094730640);
+    a=md5hh(a,b,c,d,n[i+13],4,681279174);d=md5hh(d,a,b,c,n[i],11,-358537222);c=md5hh(c,d,a,b,n[i+3],16,-722521979);b=md5hh(b,c,d,a,n[i+6],23,76029189);
+    a=md5hh(a,b,c,d,n[i+9],4,-640364487);d=md5hh(d,a,b,c,n[i+12],11,-421815835);c=md5hh(c,d,a,b,n[i+15],16,530742520);b=md5hh(b,c,d,a,n[i+2],23,-995338651);
+    a=md5ii(a,b,c,d,n[i],6,-198630844);d=md5ii(d,a,b,c,n[i+7],10,1126891415);c=md5ii(c,d,a,b,n[i+14],15,-1416354905);b=md5ii(b,c,d,a,n[i+5],21,-57434055);
+    a=md5ii(a,b,c,d,n[i+12],6,1700485571);d=md5ii(d,a,b,c,n[i+3],10,-1894986606);c=md5ii(c,d,a,b,n[i+10],15,-1051523);b=md5ii(b,c,d,a,n[i+1],21,-2054922799);
+    a=md5ii(a,b,c,d,n[i+8],6,1873313359);d=md5ii(d,a,b,c,n[i+15],10,-30611744);c=md5ii(c,d,a,b,n[i+6],15,-1560198380);b=md5ii(b,c,d,a,n[i+13],21,1309151649);
+    a=md5ii(a,b,c,d,n[i+4],6,-145523070);d=md5ii(d,a,b,c,n[i+11],10,-1120210379);c=md5ii(c,d,a,b,n[i+2],15,718787259);b=md5ii(b,c,d,a,n[i+9],21,-343485551);
+    a=safeAdd(a,oa);b=safeAdd(b,ob);c=safeAdd(c,oc);d=safeAdd(d,od);
+  }
+  return [a,b,c,d].map(v => {
+    const hex = (v < 0 ? v + 0x100000000 : v).toString(16).padStart(8,'0');
+    // FIX #1: little-endian byte reversal (was: nibble swap — wrong output)
+    return hex.match(/../g).reverse().join('');
+  }).join('');
+}
+
+// ─── CODE OBFUSCATOR ─────────────────────────────────
+function processCode() {
+  const input = document.getElementById('inputText').value;
+  if (!input.trim()) { showStatus('Input tidak boleh kosong.', 'error'); return; }
+
+  const optMangle   = document.getElementById('optMangle').checked;
+  const optStrings  = document.getElementById('optStrings').checked;
+  const optDeadCode = document.getElementById('optDeadCode').checked;
+  const optCF       = document.getElementById('optControlFlow').checked;
+  const optMinify   = document.getElementById('optMinify').checked;
+  const optSelf     = document.getElementById('optSelfDefend').checked;
+
+  let code = input;
+  const layers = [];
+
+  try {
+    if (optMinify)   { code = minifyJS(code);        layers.push('Minify'); }
+    if (optStrings)  { code = encryptStrings(code);  layers.push('String Enc'); }
+    if (optMangle)   { code = mangleNames(code);      layers.push('Name Mangle'); }
+    if (optDeadCode) { code = injectDeadCode(code);   layers.push('Dead Code'); }
+    if (optCF)       { code = wrapControlFlow(code);  layers.push('Control Flow'); }
+    if (optSelf)     { code = addAntiTamper(code);    layers.push('Anti-Tamper'); }
+
+    setOutput(code);
+
+    const delta = ((code.length - input.length) / input.length * 100).toFixed(1);
+    document.getElementById('statOrig').textContent   = input.length + ' ch';
+    document.getElementById('statObf').textContent    = code.length + ' ch';
+    document.getElementById('statDelta').textContent  = (delta > 0 ? '+' : '') + delta + '%';
+    document.getElementById('statLayers').textContent = layers.length + ' (' + layers.join(', ') + ')';
+    document.getElementById('codeStats').style.display = 'flex';
+
+    showStatus('Obfuscation selesai! ' + layers.length + ' layer diterapkan.', 'success');
+  } catch(e) {
+    showStatus('Error: ' + e.message, 'error');
+  }
+}
+
+// ── Minifier ──────────────────────────────────────────
+// FIX #4: Full rewrite. Old version claimed to preserve strings but still
+// applied blind regex over them, corrupting literals like "a >= b".
+// New approach: two-pass with placeholder extraction — strings/comments are
+// pulled out before any regex runs, then restored after minification.
+function minifyJS(code) {
+  const stored = [];
+  let buf = '';
+  let i = 0;
+
+  // Pass 1: extract strings and comments, replace with null-byte placeholders
+  while (i < code.length) {
+    const c = code[i];
+
+    // Single-line comment
+    if (c === '/' && code[i+1] === '/') {
+      while (i < code.length && code[i] !== '\n') i++;
+      continue;
+    }
+    // Multi-line comment
+    if (c === '/' && code[i+1] === '*') {
+      i += 2;
+      while (i < code.length - 1 && !(code[i] === '*' && code[i+1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    // String / template literal
+    if (c === '"' || c === "'" || c === '`') {
+      let lit = c;
+      const q = c;
+      i++;
+      while (i < code.length) {
+        const s = code[i];
+        lit += s;
+        if (s === '\\') { i++; if (i < code.length) { lit += code[i]; i++; } continue; }
+        if (s === q) { i++; break; }
+        i++;
+      }
+      const idx = stored.length;
+      stored.push(lit);
+      buf += `\x00${idx}\x00`;
+      continue;
+    }
+    buf += c;
+    i++;
+  }
+
+  // Pass 2: minify the placeholder-safe code
+  buf = buf.replace(/[ \t\r\n]+/g, ' ');
+  buf = buf.replace(/ ?([\{\}\(\)\[\];,]) ?/g, '$1');
+  buf = buf.replace(/ ?(===|!==|==|!=|>=|<=|=>|&&|\|\||[=+\-*/<>!&|?:]) ?/g, '$1');
+  buf = buf.trim();
+
+  // Pass 3: restore strings
+  return buf.replace(/\x00(\d+)\x00/g, (_, idx) => stored[parseInt(idx)]);
+}
+
+// ── String Encryptor ──────────────────────────────────
+function encryptStrings(code) {
+  return code.replace(/(["'])(?:(?!\1)[^\\]|\\.)*?\1/g, match => {
+    const quote = match[0];
+    const inner = match.slice(1, -1);
+    const encoded = Array.from(inner).map(c => {
+      const cp = c.charCodeAt(0);
+      return (cp > 0x20 && cp < 0x7f && Math.random() > 0.4)
+        ? c
+        : '\\x' + cp.toString(16).padStart(2, '0');
+    }).join('');
+    return quote + encoded + quote;
+  });
+}
+
+// ── Name Mangler ──────────────────────────────────────
+// ── Name Mangler ──────────────────────────────────────────────────────
+// FIX #7: Corrected misleading comment — no true scope tracking is done here.
+// Same-name vars in different scopes share one mangled name (safe for most
+// patterns). Removed length > 1 guard so single-char vars (i, j, n) mangle too.
+function mangleNames(code) {
+  const nameMap = new Map();
+  let counter = 0;
+
+  function genName() {
+    return '_0x' + (counter++).toString(16).padStart(4, '0');
+  }
+
+  const declPattern = /\b(var|let|const|function)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g;
+  let m;
+  while ((m = declPattern.exec(code)) !== null) {
+    const name = m[2];
+    // FIX: removed `name.length > 1` restriction (single-char vars were never mangled)
+    if (!nameMap.has(name) && !RESERVED.has(name)) {
+      nameMap.set(name, genName());
+    }
+  }
+
+  // Apply replacements — whole-word only
+  nameMap.forEach((newName, oldName) => {
+    const re = new RegExp('\\b' + escapeRegex(oldName) + '\\b', 'g');
+    code = code.replace(re, newName);
+  });
+
+  return code;
+}
+
+const RESERVED = new Set([
+  'var','let','const','function','return','if','else','for','while','do',
+  'switch','case','break','continue','new','delete','typeof','instanceof',
+  'void','throw','try','catch','finally','class','extends','import','export',
+  'default','in','of','this','super','null','undefined','true','false',
+  'NaN','Infinity','console','log','window','document','Math','JSON',
+  'Array','Object','String','Number','Boolean','Promise','async','await',
+  'yield','static','get','set','from','as','with','arguments','prototype',
+  'constructor','length','push','pop','map','filter','forEach','reduce',
+  'parseInt','parseFloat','isNaN','isFinite','setTimeout','setInterval',
+  'clearTimeout','clearInterval','fetch','crypto','TextEncoder','TextDecoder',
+  'Uint8Array','ArrayBuffer','Error','Date','RegExp','Symbol','BigInt',
+]);
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ── Dead Code Injector ────────────────────────────────
+const DEAD_SNIPPETS = [
+  'if(false){var _d1=function(){return 0xdeadbeef;};}',
+  'var _gc=typeof window!=="undefined"?window.crypto:null;void _gc;',
+  'for(var _i=0,_s=0;_i<0;_i++){_s+=_i;}',
+  'try{if(0){throw new Error("unreachable");}}catch(_e){}',
+  'var _noop=function(_x){return _x&&_x.toString?_x.toString():_x;};',
+  '(function(){if(1===0){return Math.random();}})();',
+  'var _ts=Date.now;void _ts;',
+  'switch(0){case 1:break;case 2:break;default:break;}',
+];
+
+// FIX #5 (v2): Full bracket-depth tracking. Previous fix only skipped strings
+// but still triggered on '}' — injecting dead code inside object literals and
+// function expressions. Now: tracks {([})] depth, only injects after ';'
+// at depth 0 (true top-level statement boundary). Never after '}'.
+function injectDeadCode(code) {
+  const positions = [];
+  let inStr = false, strChar = '', depth = 0;
+
+  for (let i = 0; i < code.length; i++) {
+    const c = code[i];
+    if (inStr) {
+      if (c === '\\') { i++; continue; }
+      if (c === strChar) inStr = false;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') { inStr = true; strChar = c; continue; }
+    if (c === '{' || c === '(' || c === '[') { depth++; continue; }
+    if (c === '}' || c === ')' || c === ']') { if (depth > 0) depth--; continue; }
+    // Only inject after ';' at depth 0 — never inside objects, functions, or expressions
+    if (c === ';' && depth === 0 && Math.random() < 0.3) positions.push(i + 1);
+  }
+
+  let result = code;
+  for (let i = positions.length - 1; i >= 0; i--) {
+    const snippet = DEAD_SNIPPETS[Math.floor(Math.random() * DEAD_SNIPPETS.length)];
+    result = result.slice(0, positions[i]) + snippet + result.slice(positions[i]);
+  }
+  return result;
+}
+
+// ── Control Flow Wrapper ──────────────────────────────
+// FIX #3a: Rewrote execution order logic. Old code generated a random order[]
+// array and used it BOTH as the iteration sequence AND the chunk index map,
+// causing chunks to execute in scrambled (wrong) order.
+// FIX #3b: 'chunk' variable with backtick-escaping was computed but never used;
+// now actually used in the case string.
+// FIX #3c: Case labels are now numeric strings — no quote escaping issue.
+// Correct logic: assign a random label to each chunk; iterate labels in order
+// so chunks[0], chunks[1], chunks[2] always execute sequentially.
+function wrapControlFlow(code) {
+  const n = 3;
+  const chunks = splitCodeChunks(code, n);
+
+  // labels[i] = the case label that will trigger chunk i
+  const labels = Array.from({length: n}, (_, i) => i)
+    .sort(() => Math.random() - 0.5);
+
+  const varName = '_cf' + Math.floor(Math.random()*0xffff).toString(16);
+  const idxName = '_ci' + Math.floor(Math.random()*0xffff).toString(16);
+
+  // The while loop iterates labels[0], labels[1], labels[2]
+  // → hits case for chunk[0], then chunk[1], then chunk[2] (correct order)
+  const orderStr = labels.join('|');
+
+  let cases = '';
+  for (let i = 0; i < n; i++) {
+    // FIX #3b (v2): removed erroneous .replace(/\\/g,'\\\\') — chunk code is
+    // embedded via string concatenation, not inside a JS string literal,
+    // so backslashes must NOT be re-escaped (would corrupt \n, \t, \" etc.)
+    const chunkCode = chunks[i] || '';
+    cases += `case '${labels[i]}':${chunkCode};break;`;
+  }
+
+  const wrapped =
+    `;(function(){` +
+    `var ${varName}='${orderStr}'.split('|'),${idxName}=0;` +
+    `while(${idxName}<${varName}.length){` +
+    `switch(${varName}[${idxName}++]){${cases}}` +
+    `}` +
+    `})();`;
+
+  return wrapped;
+}
+
+// FIX #8: Full rewrite of splitCodeChunks. Old version scanned forward from
+// an arbitrary character position for the nearest ';' or '}' — could land
+// mid-expression, mid-dead-code-snippet, or mid-function, producing invalid
+// chunks. New approach: first collect ALL top-level statements by tracking
+// full bracket/string depth, then group them into N balanced chunks.
+// A "top-level statement" ends at ';' or '}' when depth === 0.
+function splitCodeChunks(code, n) {
+  const stmts = [];
+  let start = 0, depth = 0, inStr = false, strChar = '';
+
+  for (let i = 0; i < code.length; i++) {
+    const c = code[i];
+    if (inStr) {
+      if (c === '\\') { i++; continue; }
+      if (c === strChar) inStr = false;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '`') { inStr = true; strChar = c; continue; }
+    if (c === '{' || c === '(' || c === '[') { depth++; continue; }
+    if (c === '}' || c === ')' || c === ']') {
+      if (depth > 0) depth--;
+      if (depth === 0) {
+        // '}' at top level = end of a block statement (if/for/function etc.)
+        const stmt = code.slice(start, i + 1).trim();
+        if (stmt) stmts.push(stmt);
+        start = i + 1;
+      }
+      continue;
+    }
+    if (c === ';' && depth === 0) {
+      const stmt = code.slice(start, i + 1).trim();
+      if (stmt) stmts.push(stmt);
+      start = i + 1;
+    }
+  }
+  const tail = code.slice(start).trim();
+  if (tail) stmts.push(tail);
+
+  if (stmts.length === 0) return Array(n).fill('');
+
+  // Group statements into exactly n balanced chunks
+  const perChunk = Math.ceil(stmts.length / n);
+  const chunks = [];
+  for (let i = 0; i < n; i++) {
+    chunks.push(stmts.slice(i * perChunk, (i + 1) * perChunk).join(' '));
+  }
+  while (chunks.length < n) chunks.push('');
+  return chunks;
+}
+
+// ── Anti-Tamper Header ────────────────────────────────
+function addAntiTamper(code) {
+  const hash = simpleHash(code);
+  const header =
+    `/* OBSCURA v2.1 | Protected | Integrity: ${hash} */\n` +
+    `(function(){var _h="${hash}",_c=function(s){var h=0x811c9dc5>>>0;` +
+    `for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=(h*0x01000193)>>>0;}` +
+    `return h.toString(16).padStart(8,'0');};` +
+    // FIX #2: Anti-tamper now has actual consequence (was: empty body — no-op)
+    `if(_c(document.currentScript?document.currentScript.text||'':'')!==_h){` +
+    `document.body.innerHTML='<pre style="color:red;padding:20px">⛔ Script integrity check failed.</pre>';` +
+    `throw new Error('OBSCURA: Script tampered.');}` +
+    `})();\n`;
+  return header + code;
+}
+
+function simpleHash(str) {
+  let h = 0x811c9dc5 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+// ─── UI HELPERS ───────────────────────────────────────
+function setOutput(val) {
+  document.getElementById('outputText').value = val;
+  document.getElementById('outCount').textContent = val.length + ' chars';
+  // Show/hide download button
+  const dlBtn = document.getElementById('dlBtn');
+  if (val.trim()) dlBtn.classList.add('visible');
+  else dlBtn.classList.remove('visible');
+}
+
+function updateCount() {
+  document.getElementById('charCount').textContent =
+    document.getElementById('inputText').value.length + ' chars';
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = '▸ ' + msg;
+  el.className = 'status ' + type;
+}
+
+function clearStatus() {
+  document.getElementById('status').className = 'status';
+  document.getElementById('status').textContent = '';
+}
+
+function clearAll() {
+  document.getElementById('inputText').value  = '';
+  document.getElementById('outputText').value = '';
+  document.getElementById('charCount').textContent = '0 chars';
+  document.getElementById('outCount').textContent  = '0 chars';
+  document.getElementById('hashInfo').style.display   = 'none';
+  document.getElementById('codeStats').style.display  = 'none';
+  document.getElementById('dlBtn').classList.remove('visible');
+  clearStatus();
+}
+
+function swapIO() {
+  const inp = document.getElementById('inputText');
+  const out = document.getElementById('outputText');
+  const tmp = inp.value;
+  inp.value = out.value;
+  out.value = tmp;
+  updateCount();
+  document.getElementById('outCount').textContent = out.value.length + ' chars';
+}
+
+function downloadOutput() {
+  const val = document.getElementById('outputText').value;
+  if (!val) return;
+
+  // Determine file extension based on mode/tool
+  const extMap = {
+    base64: 'txt', url: 'txt', hex: 'txt', binary: 'txt',
+    html: 'html', unicode: 'txt',
+    md5: 'txt', sha1: 'txt', sha256: 'txt', sha512: 'txt',
+    caesar: 'txt', rot13: 'txt', atbash: 'txt', reverse: 'txt', morse: 'txt',
+    js: 'js',
+  };
+  const tool = currentMode === 'code' ? 'js' : (currentTool || 'txt');
+  const ext = extMap[tool] || 'txt';
+  const filename = `obscura-output-${Date.now()}.${ext}`;
+
+  const blob = new Blob([val], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyOutput() {
+  const val = document.getElementById('outputText').value;
+  if (!val) return;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────
+switchMode('encode');
+selectTool('base64');
+</script>
+</body>
+</html>
